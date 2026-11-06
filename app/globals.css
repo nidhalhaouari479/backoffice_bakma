@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* ---- Design tokens Bakma Store (backoffice) ---- */
+@theme static {
+  --color-primary: #0b6fe0;
+  --color-primary-dark: #0a5fcc;
+  --color-primary-soft: #e3f0fd;
+  --color-navy: #0b1f4d;
+  --color-body: #4a5a7a;
+  --color-muted: #8a97b0;
+  --color-line: #e2e8f2;
+  --color-page: #f3f7fc;
+  --color-adopt: #f97316;
+  --color-sale: #22a55b;
+  --font-sans: var(--font-app), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --radius-card: 18px;
+  --radius-input: 12px;
+  --radius-btn: 12px;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: var(--color-page);
+  color: var(--color-body);
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, h4 {
+  color: var(--color-navy);
+}
+
+.select-chevron {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a9aab' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
