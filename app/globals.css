@@ -1,24 +1,44 @@
 @import "tailwindcss";
 
-/* ---- Design tokens Bakma Store (backoffice) ---- */
+/* =============================================================================
+   Design system back-office Bakma (admin + vétérinaire)
+   Structure : 3 plans de surface (shell → canvas → cartes blanches), ombres légères,
+   couleur = sens (marque = action/actif ; vert/rose/ambre = états), chiffres alignés.
+   Couleurs et police : celles du site Bakma Store (spa).
+   ============================================================================= */
 @theme static {
-  --color-primary: #0b6fe0;
-  --color-primary-dark: #0a5fcc;
-  --color-primary-soft: #e3f0fd;
-  --color-navy: #0b1f4d;
-  --color-body: #4a5a7a;
-  --color-muted: #8a97b0;
-  --color-line: #e2e8f2;
-  --color-page: #f3f7fc;
+  /* Marque Bakma (identique au site public) */
+  --color-primary: #0e7c9b;
+  --color-primary-dark: #0b6a87;
+  --color-primary-light: #1590b3;
+  --color-primary-soft: #e3f3f8;
+  --color-navy: #0f2a3d;
+  --color-body: #4b5d6e;
+  --color-muted: #687b8d; /* secondaire : assez contrasté sur blanc */
+  --color-line: #e2eaf1;
+  --color-page: #f2f8fc;
   --color-adopt: #f97316;
   --color-sale: #22a55b;
+  --color-accent: #22a55b; /* barre verticale du lien actif */
+
+  /* Plans de surface */
+  --color-shell: #edf2f6; /* fond de l'application + barre latérale */
+  --color-canvas: #fbfdfe; /* panneau de contenu flottant + barre du haut */
+  --color-focus: #475569; /* anneau de focus clavier, volontairement neutre */
+
+  /* Ombres */
+  --shadow-card: 0 1px 2px rgba(15, 42, 61, 0.04), 0 1px 3px rgba(15, 42, 61, 0.05);
+  --shadow-lift: 0 10px 24px -10px rgba(15, 42, 61, 0.16), 0 2px 6px -2px rgba(15, 42, 61, 0.06);
+  --shadow-pop: 0 24px 48px -12px rgba(15, 42, 61, 0.22), 0 8px 16px -8px rgba(15, 42, 61, 0.08);
+  --shadow-brand: 0 1px 2px rgba(11, 106, 135, 0.25), 0 4px 12px -4px rgba(14, 124, 155, 0.45);
+
   --font-sans: var(--font-app), ui-sans-serif, system-ui, sans-serif;
 }
 
 :root {
-  --radius-card: 18px;
-  --radius-input: 12px;
-  --radius-btn: 12px;
+  --radius-card: 16px;
+  --radius-input: 10px;
+  --radius-btn: 8px;
 }
 
 html {
@@ -26,17 +46,106 @@ html {
 }
 
 body {
-  background: var(--color-page);
+  background: var(--color-shell);
   color: var(--color-body);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
 }
 
-h1, h2, h3, h4 {
-  color: var(--color-navy);
+/* En couche « base » : une classe utilitaire (ex. text-white) reste prioritaire. */
+@layer base {
+  h1, h2, h3, h4 {
+    color: var(--color-navy);
+  }
 }
+
+/* ---- Échelle typographique dense de l'admin ---- */
+.admin-dashboard {
+  font-size: 13.5px;
+  line-height: 1.5;
+  overscroll-behavior-y: none;
+}
+.admin-dashboard .text-sm {
+  font-size: 13.5px;
+}
+/* Aucune taille sous 12 px */
+.admin-dashboard .text-\[8px\],
+.admin-dashboard .text-\[9px\],
+.admin-dashboard .text-\[10px\],
+.admin-dashboard .text-\[11px\] {
+  font-size: 12px;
+}
+/* Graisses : 700 au maximum */
+.admin-dashboard .font-extrabold,
+.admin-dashboard .font-black {
+  font-weight: 700;
+}
+/* Montants, dates, compteurs */
+.admin-dashboard .tabular-nums,
+.admin-dashboard td {
+  font-variant-numeric: tabular-nums;
+}
+/* Mobile : 16 px dans les champs pour éviter le zoom automatique d'iOS */
+@media (max-width: 767px) {
+  .admin-dashboard input:not([type="checkbox"]):not([type="radio"]),
+  .admin-dashboard select,
+  .admin-dashboard textarea {
+    font-size: 16px;
+  }
+}
+
+/* ---- Animations ---- */
+@keyframes bo-fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bo-modal-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bo-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes bo-drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: none; }
+}
+@keyframes bo-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.bo-page-in { animation: bo-fade-up 0.2s ease-out; }
+.bo-fade-in { animation: bo-fade-in 0.15s ease-out; }
+.bo-modal-in { animation: bo-sheet-in 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+.bo-drawer-in { animation: bo-drawer-in 0.25s cubic-bezier(0.32, 0.72, 0, 1); }
+@media (min-width: 768px) {
+  .bo-modal-in { animation: bo-modal-in 0.15s ease-out; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-dashboard *,
+  .admin-dashboard *::before,
+  .admin-dashboard *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- Barres de défilement discrètes ---- */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 42, 61, 0.18) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(15, 42, 61, 0.18); border-radius: 999px; border: 2px solid transparent; background-clip: content-box; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 
 .select-chevron {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a9aab' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23687b8d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 }
 
 .scrollbar-none { scrollbar-width: none; }

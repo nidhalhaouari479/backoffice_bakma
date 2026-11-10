@@ -5,6 +5,8 @@ import type {
   ConsultationStatus,
   ExamResult,
   ListingType,
+  OrderStatus,
+  PurchaseStatus,
   ReportStatus,
   RequestStatus,
   RequestStep,
@@ -76,6 +78,31 @@ export const REPORT_STATUS: Record<ReportStatus, Meta> = {
   rejete: { label: "Rejeté", tone: "grey" },
 };
 
+export const PURCHASE_STATUS: Record<PurchaseStatus, Meta> = {
+  paiement_a_verifier: { label: "Paiement en vérification", tone: "orange" },
+  paiement_refuse: { label: "Paiement refusé", tone: "red" },
+  annulee: { label: "Annulé", tone: "grey" },
+  garantie: { label: "Garantie en cours", tone: "blue" },
+  litige: { label: "Litige", tone: "red" },
+  versee: { label: "Versé au vendeur", tone: "green" },
+  remboursee: { label: "Remboursé", tone: "purple" },
+};
+
+export const ORDER_STATUS: Record<OrderStatus, Meta> = {
+  nouvelle: { label: "Nouvelle", tone: "orange" },
+  confirmee: { label: "Confirmée", tone: "blue" },
+  expediee: { label: "En livraison", tone: "purple" },
+  livree: { label: "Livrée", tone: "green" },
+  annulee: { label: "Annulée", tone: "grey" },
+};
+
+/** RIB tunisien : 20 chiffres, affiché par groupes (banque · agence · compte · clé). */
+export function formatRib(rib: string | null | undefined): string {
+  const d = (rib ?? "").replace(/\D/g, "");
+  if (d.length !== 20) return rib ?? "";
+  return `${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 18)} ${d.slice(18)}`;
+}
+
 export const LISTING_TYPE: Record<ListingType, Meta> = {
   adoption: { label: "À adopter", tone: "orange" },
   vente: { label: "À vendre", tone: "green" },
@@ -123,6 +150,12 @@ export function formatAge(value: number | null | undefined, unit: AgeUnit | null
 export function formatPrice(price: number | null | undefined, type?: ListingType): string {
   if (type === "adoption" || !price) return "Gratuit";
   return `${new Intl.NumberFormat("fr-FR").format(price)} TND`;
+}
+
+const tndFmt = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+/** Montant boutique en dinars (0 affiché « 0 TND », jamais « Gratuit »). */
+export function formatTnd(amount: number | string | null | undefined): string {
+  return `${tndFmt.format(Number(amount ?? 0))} TND`;
 }
 
 const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });

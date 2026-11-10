@@ -125,15 +125,17 @@ export default function DashboardPage() {
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map((k) => (
-          <Card key={k.label} className="flex items-center gap-4 p-5">
-            <span className={cn("grid size-16 shrink-0 place-items-center rounded-2xl [&>svg]:size-7", k.tile)}>{k.icon}</span>
-            <div className="min-w-0">
-              <div className="text-3xl font-extrabold leading-none text-navy">{k.value}</div>
-              <div className="mt-1 text-[15px] font-medium text-body">{k.label}</div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                <DeltaChip value={k.delta} mode={k.mode} invert={k.invert} />
-              </div>
-              <div className="mt-1 text-xs text-muted">{caption}</div>
+          <Card key={k.label} className="p-5">
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-[13px] font-medium text-slate-500">{k.label}</span>
+              <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl [&>svg]:size-[18px]", k.tile)} aria-hidden>
+                {k.icon}
+              </span>
+            </div>
+            <div className="mt-1 text-2xl font-semibold leading-none tabular-nums text-navy">{k.value}</div>
+            <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <DeltaChip value={k.delta} mode={k.mode} invert={k.invert} />
+              <span className="text-xs text-slate-500">{caption}</span>
             </div>
           </Card>
         ))}
@@ -168,7 +170,7 @@ export default function DashboardPage() {
               thickness={28}
               center={
                 <div>
-                  <div className="text-3xl font-extrabold text-navy">{total}</div>
+                  <div className="text-2xl font-semibold tabular-nums text-navy">{total}</div>
                   <div className="text-sm text-body">Demandes</div>
                 </div>
               }

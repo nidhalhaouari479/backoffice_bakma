@@ -139,7 +139,7 @@ function Messages() {
           <ErrorState message={convs.error} onRetry={convs.reload} />
         </Card>
       ) : (
-        <Card className="grid h-[calc(100vh-240px)] min-h-[480px] overflow-hidden lg:grid-cols-[340px_1fr]">
+        <Card className="grid h-[calc(100dvh-210px)] min-h-[480px] overflow-hidden lg:grid-cols-[340px_1fr]">
           {/* Liste */}
           <div className={cn("flex min-h-0 flex-col border-line lg:border-r", selected && "hidden lg:flex")}>
             <div className="border-b border-line p-4">

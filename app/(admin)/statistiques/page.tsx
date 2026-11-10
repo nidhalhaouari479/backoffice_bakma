@@ -227,7 +227,7 @@ export default function StatistiquesPage() {
               ]}
               center={
                 <div>
-                  <div className="text-3xl font-extrabold text-navy">{published.length}</div>
+                  <div className="text-2xl font-semibold tabular-nums text-navy">{published.length}</div>
                   <div className="text-sm text-body">Annonces</div>
                 </div>
               }
@@ -311,12 +311,14 @@ export default function StatistiquesPage() {
 
 function Kpi({ icon, value, label, tone }: { icon: React.ReactNode; value: React.ReactNode; label: string; tone: string }) {
   return (
-    <Card className="flex items-center gap-4 p-5">
-      <span className={cn("grid size-14 shrink-0 place-items-center rounded-2xl [&>svg]:size-6", tone)}>{icon}</span>
-      <div>
-        <div className="text-3xl font-extrabold leading-none text-navy">{value}</div>
-        <div className="mt-1 text-sm font-medium text-body">{label}</div>
+    <Card className="p-5">
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[13px] font-medium text-slate-500">{label}</span>
+        <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl [&>svg]:size-[18px]", tone)} aria-hidden>
+          {icon}
+        </span>
       </div>
+      <div className="mt-1 text-2xl font-semibold leading-none tabular-nums text-navy">{value}</div>
     </Card>
   );
 }

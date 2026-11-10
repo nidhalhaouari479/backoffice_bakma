@@ -4,6 +4,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Suspense, useState } from "react";
 import {
   CalendarClock,
+  Check,
+  ChevronDown,
   CircleCheck,
   CircleMinus,
   CircleX,
@@ -17,14 +19,16 @@ import {
   MessageCircle,
   Phone,
   RotateCcw,
+  Star,
   Stethoscope,
   UserPlus,
 } from "lucide-react";
 import { CategoryChip, ErrorState, InfoRow, PageHeader, RequestStatusBadge, RequestStepper } from "@/components/admin-ui";
 import { hasFavorableOpinion, useRequestActions } from "@/components/RequestActions";
 import { ConsultationPhotosCard, DocumentsCard, Gallery, VetReportCard } from "@/components/VetReport";
-import { Avatar, Badge, Button, Card, EmptyState, MetaBadge, Modal, PageLoader, Spinner, cn, useToast } from "@/components/ui";
+import { Avatar, Badge, Button, Card, EmptyState, MetaBadge, Modal, PageLoader, Spinner, useToast } from "@/components/ui";
 import { must, useAsync } from "@/hooks/useAsync";
+import { useAuth } from "@/hooks/useAuth";
 import { ACTIVITY_SELECT, REQUEST_DETAIL_SELECT, siteUrl } from "@/lib/admin";
 import { CONSULTATION_STATUS, LISTING_TYPE, SEX_LABEL, formatAge, formatDate, formatDateTime, formatPrice } from "@/lib/labels";
 import { signedDocumentUrl } from "@/lib/storage";
@@ -45,6 +49,7 @@ function DemandeDetail() {
   const toast = useToast();
   const [assignOpen, setAssignOpen] = useState(false);
   const [contacting, setContacting] = useState(false);
+  const { user } = useAuth();
 
   const { data, error, loading, reload } = useAsync(async () => {
     const supabase = getSupabase();
@@ -278,9 +283,13 @@ function DemandeDetail() {
             ) : (
               <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">CIN non fournie (demande antérieure à l&apos;obligation).</p>
             )}
-            <Button className="mt-5 w-full" variant="soft" icon={<MessageCircle className="size-4" />} loading={contacting} onClick={contactOwner}>
-              Contacter le propriétaire
-            </Button>
+            {user?.id === r.owner_id ? (
+              <p className="mt-5 rounded-xl bg-slate-50 px-3 py-2.5 text-center text-xs text-slate-500">C&apos;est votre propre compte : la messagerie ne permet pas de s&apos;écrire à soi-même.</p>
+            ) : (
+              <Button className="mt-5 w-full" variant="soft" icon={<MessageCircle className="size-4" />} loading={contacting} onClick={contactOwner}>
+                Contacter le propriétaire
+              </Button>
+            )}
           </Card>
 
           {/* Vétérinaire */}
@@ -392,6 +401,7 @@ function DemandeDetail() {
           onClose={() => setAssignOpen(false)}
           consultationId={consultation.id}
           currentVet={consultation.vet_id}
+          preferredCity={owner?.city || animal?.city || null}
           onDone={() => {
             setAssignOpen(false);
             reload();
@@ -421,20 +431,83 @@ function ContactLine({ icon, value, href }: { icon: React.ReactNode; value: stri
 
 // ------------------------------------------------------------------ attribution d'un vétérinaire
 type VetRow = Veterinarian & { profile: Profile | null };
+type CityItem = { key: string; label: string; n: number };
 
-function AssignVetModal({ open, onClose, consultationId, currentVet, onDone }: { open: boolean; onClose: () => void; consultationId: string; currentVet: string | null; onDone: () => void }) {
+/** Compare deux noms de ville sans tenir compte de la casse ni des accents. */
+const cityKey = (c: string | null | undefined) =>
+  (c ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+
+function AssignVetModal({
+  open,
+  onClose,
+  consultationId,
+  currentVet,
+  preferredCity,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  consultationId: string;
+  currentVet: string | null;
+  preferredCity: string | null;
+  onDone: () => void;
+}) {
   const toast = useToast();
+  const prefKey = cityKey(preferredCity);
+  const [city, setCity] = useState<string>(prefKey);
   const [choice, setChoice] = useState<string | null>(null);
+  const [panel, setPanel] = useState<"city" | "vet" | null>(null);
+  const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const vets = useAsync(async () => {
-    const res = await getSupabase()
-      .from("veterinarians")
-      .select("*, profile:profiles!veterinarians_profile_id_fkey(*)")
-      .eq("is_verified", true);
-    return must<VetRow[]>(res).filter((v) => v.profile?.status === "actif" && v.profile.role === "veterinaire");
+  const data = useAsync(async () => {
+    const sb = getSupabase();
+    const [vetsRes, citiesRes] = await Promise.all([
+      sb.from("veterinarians").select("*, profile:profiles!veterinarians_profile_id_fkey(*)").eq("is_verified", true),
+      sb.from("cities").select("name").order("name"),
+    ]);
+    const vets = must<VetRow[]>(vetsRes).filter((v) => v.profile?.status === "actif" && v.profile.role === "veterinaire");
+    const cities = must<{ name: string }[]>(citiesRes).map((c) => c.name);
+    return { vets, cities };
   }, open ? "open" : null);
+
+  const vets = data.data?.vets ?? [];
+  const vetCity = (v: VetRow) => v.city || v.profile?.city || null;
+
+  // toutes les villes (table cities + villes des vétérinaires + ville du propriétaire) avec leur nombre de vétérinaires
+  const cities: CityItem[] = (() => {
+    const map = new Map<string, { label: string; n: number }>();
+    const add = (label: string | null | undefined) => {
+      const k = cityKey(label);
+      if (k && !map.has(k)) map.set(k, { label: label!.trim(), n: 0 });
+      return k;
+    };
+    for (const c of data.data?.cities ?? []) add(c);
+    if (preferredCity) add(preferredCity);
+    for (const v of vets) {
+      const k = add(vetCity(v));
+      if (k) map.get(k)!.n++;
+    }
+    return [...map.entries()].map(([key, x]) => ({ key, ...x })).sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  })();
+  const qKey = cityKey(q);
+  const prefCity = cities.find((c) => c.key === prefKey) ?? null;
+  const otherCities = cities.filter((c) => c.key !== prefKey && c.key.includes(qKey));
+  const current = city ? (cities.find((c) => c.key === city) ?? null) : null;
+
+  const cityVets = vets
+    .filter((v) => !city || cityKey(vetCity(v)) === city)
+    .sort((a, b) => (a.profile?.full_name ?? "").localeCompare(b.profile?.full_name ?? "", "fr"));
+  const selected = vets.find((v) => v.profile_id === choice) ?? null;
+
+  function pickCity(k: string) {
+    setCity(k);
+    setChoice(null);
+    setErr(null);
+    setQ("");
+    setPanel("vet");
+  }
 
   async function submit() {
     if (!choice) {
@@ -475,44 +548,184 @@ function AssignVetModal({ open, onClose, consultationId, currentVet, onDone }: {
       }
     >
       <div className="space-y-4">
-        {vets.loading ? (
+        {data.loading ? (
           <div className="flex justify-center py-8">
             <Spinner />
           </div>
-        ) : vets.error ? (
-          <p className="text-sm text-red-600">{vets.error}</p>
-        ) : !vets.data?.length ? (
-          <p className="text-sm text-muted">Aucun vétérinaire validé disponible. Validez d&apos;abord un vétérinaire depuis la page Vétérinaires.</p>
+        ) : data.error ? (
+          <p className="text-sm text-red-600">{data.error}</p>
         ) : (
-          <ul className="max-h-72 space-y-2 overflow-y-auto pr-1">
-            {vets.data.map((v) => (
-              <li key={v.profile_id}>
-                <button
-                  type="button"
-                  onClick={() => setChoice(v.profile_id)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition",
-                    choice === v.profile_id ? "border-primary bg-primary-soft" : "border-line hover:border-primary/50",
-                  )}
-                >
-                  <Avatar src={v.profile?.avatar_url} name={v.profile?.full_name} size={40} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-bold text-navy">Dr. {v.profile?.full_name}</div>
-                    <div className="truncate text-xs text-muted">{[v.clinic_name, v.city].filter(Boolean).join(" · ") || "—"}</div>
+          <>
+            {/* 1. Ville */}
+            <div>
+              <div className="mb-1.5 text-[12.5px] font-medium text-slate-700">1. Ville</div>
+              <PickerTrigger open={panel === "city"} onClick={() => setPanel(panel === "city" ? null : "city")} icon={<MapPin />}>
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-semibold text-navy">{current?.label ?? "Toutes les villes"}</span>
+                  {current && current.key === prefKey && <OwnerTag />}
+                </span>
+                <CountPill n={current ? current.n : vets.length} />
+              </PickerTrigger>
+
+              {panel === "city" && (
+                <div className="mt-2 overflow-hidden rounded-xl border border-line bg-white shadow-[var(--shadow-pop)]">
+                  <div className="border-b border-line p-2">
+                    <input
+                      autoFocus
+                      value={q}
+                      onChange={(e) => setQ(e.target.value)}
+                      placeholder="Rechercher une ville…"
+                      className="h-9 w-full rounded-lg bg-slate-50 px-3 text-sm text-navy outline-none placeholder:text-slate-400 focus:bg-slate-100"
+                    />
                   </div>
-                  {currentVet === v.profile_id && (
-                    <Badge tone="blue" dot={false}>
-                      Actuel
-                    </Badge>
+                  <div className="max-h-64 overflow-y-auto p-1.5">
+                    {prefCity && prefCity.key.includes(qKey) && (
+                      <>
+                        <GroupLabel>Ville du propriétaire</GroupLabel>
+                        <CityOption c={prefCity} active={city === prefCity.key} owner onClick={() => pickCity(prefCity.key)} />
+                        <div className="my-1.5 border-t border-line" />
+                      </>
+                    )}
+                    <GroupLabel>Toutes les villes</GroupLabel>
+                    {!qKey && <CityOption c={{ key: "", label: "Toutes les villes", n: vets.length }} active={city === ""} onClick={() => pickCity("")} />}
+                    {otherCities.map((c) => (
+                      <CityOption key={c.key} c={c} active={city === c.key} onClick={() => pickCity(c.key)} />
+                    ))}
+                    {!otherCities.length && qKey && <p className="px-3 py-3 text-center text-xs text-muted">Aucune ville trouvée.</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Vétérinaire */}
+            <div>
+              <div className="mb-1.5 text-[12.5px] font-medium text-slate-700">2. Vétérinaire</div>
+              <PickerTrigger
+                open={panel === "vet"}
+                onClick={() => setPanel(panel === "vet" ? null : "vet")}
+                icon={selected ? <Avatar src={selected.profile?.avatar_url} name={selected.profile?.full_name} size={28} /> : <Stethoscope />}
+              >
+                {selected ? (
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold text-navy">Dr. {selected.profile?.full_name}</span>
+                    <span className="block truncate text-xs text-muted">{[selected.clinic_name, vetCity(selected)].filter(Boolean).join(" · ") || "—"}</span>
+                  </span>
+                ) : (
+                  <span className="truncate text-slate-400">
+                    {cityVets.length ? `Choisir parmi ${cityVets.length} vétérinaire${cityVets.length > 1 ? "s" : ""}…` : "Aucun vétérinaire dans cette ville"}
+                  </span>
+                )}
+              </PickerTrigger>
+
+              {panel === "vet" && (
+                <div className="mt-2 overflow-hidden rounded-xl border border-line bg-white shadow-[var(--shadow-pop)]">
+                  {cityVets.length ? (
+                    <ul className="max-h-64 space-y-1 overflow-y-auto p-1.5">
+                      {cityVets.map((v) => {
+                        const active = choice === v.profile_id;
+                        return (
+                          <li key={v.profile_id}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setChoice(v.profile_id);
+                                setErr(null);
+                                setPanel(null);
+                              }}
+                              className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition ${active ? "bg-primary-soft" : "hover:bg-slate-50"}`}
+                            >
+                              <Avatar src={v.profile?.avatar_url} name={v.profile?.full_name} size={36} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold text-navy">Dr. {v.profile?.full_name}</span>
+                                <span className="flex items-center gap-1 truncate text-xs text-muted">
+                                  <MapPin className="size-3 shrink-0" />
+                                  {[v.clinic_name, vetCity(v)].filter(Boolean).join(" · ") || "—"}
+                                </span>
+                              </span>
+                              {currentVet === v.profile_id && (
+                                <Badge tone="blue" dot={false}>
+                                  Actuel
+                                </Badge>
+                              )}
+                              {active && <Check className="size-4 shrink-0 text-primary" />}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="px-4 py-5 text-center">
+                      <p className="text-sm text-muted">Aucun vétérinaire validé à {current?.label ?? "cette ville"}.</p>
+                      <button type="button" className="mt-2 text-sm font-semibold text-primary hover:underline" onClick={() => setPanel("city")}>
+                        Choisir une autre ville
+                      </button>
+                    </div>
                   )}
-                </button>
-              </li>
-            ))}
-          </ul>
+                </div>
+              )}
+            </div>
+          </>
         )}
         {err && <p className="text-sm font-medium text-red-600">{err}</p>}
         <p className="text-xs text-muted">Le vétérinaire sera notifié et devra choisir une des 3 dates proposées par le propriétaire pour accepter.</p>
       </div>
     </Modal>
+  );
+}
+
+function PickerTrigger({ open, onClick, icon, children }: { open: boolean; onClick: () => void; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      className={`flex min-h-[48px] w-full items-center gap-3 rounded-xl border bg-white px-3 py-2 text-left text-sm transition ${
+        open ? "border-primary ring-2 ring-primary/15" : "border-slate-300 hover:border-slate-400"
+      }`}
+    >
+      <span className="flex shrink-0 text-slate-400 [&>svg]:size-4">{icon}</span>
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-2">{children}</span>
+      <ChevronDown className={`size-4 shrink-0 text-slate-400 transition ${open ? "rotate-180" : ""}`} />
+    </button>
+  );
+}
+
+function CityOption({ c, active, owner, onClick }: { c: CityItem; active: boolean; owner?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition ${active ? "bg-primary-soft" : "hover:bg-slate-50"}`}
+    >
+      <MapPin className={`size-4 shrink-0 ${owner ? "text-amber-500" : c.n || !c.key ? "text-primary" : "text-slate-300"}`} />
+      <span className={`min-w-0 flex-1 truncate ${c.n || !c.key ? "font-medium text-navy" : "text-slate-400"}`}>{c.label}</span>
+      {owner && <OwnerTag />}
+      <CountPill n={c.n} />
+      <Check className={`size-4 shrink-0 text-primary ${active ? "" : "invisible"}`} />
+    </button>
+  );
+}
+
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{children}</div>;
+}
+
+function OwnerTag() {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+      <Star className="size-3 fill-current" /> Propriétaire
+    </span>
+  );
+}
+
+function CountPill({ n }: { n: number }) {
+  return (
+    <span
+      title={`${n} vétérinaire${n > 1 ? "s" : ""}`}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${n ? "bg-primary-soft text-primary" : "bg-slate-100 text-slate-400"}`}
+    >
+      <Stethoscope className="size-3" />
+      {n}
+    </span>
   );
 }

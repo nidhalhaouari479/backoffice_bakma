@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Building2, Check, Mail, MapPin, Pencil, Phone, Plus, Save, ShieldCheck, Trash2, X } from "lucide-react";
+import { Building2, Check, Landmark, Mail, MapPin, Pencil, Phone, Plus, Save, ShieldCheck, Store, Trash2, Truck, X } from "lucide-react";
 import { ConfirmDialog, ErrorState, PageHeader } from "@/components/admin-ui";
 import { Alert, Button, Card, CardHeader, Checkbox, Field, Input, PageLoader, Spinner, Tabs, useToast } from "@/components/ui";
 import { must, useAsync } from "@/hooks/useAsync";
+import { formatRib } from "@/lib/labels";
 import { errorMessage, getSupabase } from "@/lib/supabase";
 import type { City } from "@/lib/types";
 
-type TabKey = "platform" | "moderation" | "cities";
+type TabKey = "platform" | "moderation" | "payment" | "shop" | "cities";
 
 export default function ParametresPage() {
   const [tab, setTab] = useState<TabKey>("platform");
@@ -22,12 +23,16 @@ export default function ParametresPage() {
           items={[
             { value: "platform", label: "Plateforme", icon: <Building2 /> },
             { value: "moderation", label: "Modération", icon: <ShieldCheck /> },
+            { value: "payment", label: "Paiement", icon: <Landmark /> },
+            { value: "shop", label: "Boutique", icon: <Store /> },
             { value: "cities", label: "Villes", icon: <MapPin /> },
           ]}
         />
       </div>
       {tab === "platform" && <SettingsForm key="platform" settingKey="platform" />}
       {tab === "moderation" && <SettingsForm key="moderation" settingKey="moderation" />}
+      {tab === "payment" && <SettingsForm key="payment" settingKey="payment" />}
+      {tab === "shop" && <SettingsForm key="shop" settingKey="shop" />}
       {tab === "cities" && <Cities />}
     </div>
   );
@@ -36,13 +41,15 @@ export default function ParametresPage() {
 // ------------------------------------------------------------------ settings (jsonb)
 type Json = Record<string, unknown>;
 
-function SettingsForm({ settingKey }: { settingKey: "platform" | "moderation" }) {
+function SettingsForm({ settingKey }: { settingKey: "platform" | "moderation" | "payment" | "shop" }) {
   const { data, error, loading, reload } = useAsync(async () => {
     const res = await getSupabase().from("settings").select("value").eq("key", settingKey).maybeSingle();
     return (must<{ value: Json } | null>(res)?.value ?? {}) as Json;
   }, settingKey);
   if (loading) return <PageLoader />;
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
+  if (settingKey === "payment") return <PaymentForm initial={data ?? {}} />;
+  if (settingKey === "shop") return <ShopForm initial={data ?? {}} />;
   return settingKey === "platform" ? <PlatformForm initial={data ?? {}} /> : <ModerationForm initial={data ?? {}} />;
 }
 
@@ -127,6 +134,102 @@ function ModerationForm({ initial }: { initial: Json }) {
         <Checkbox label="Vérification vétérinaire obligatoire avant publication" checked={vetCheck} onChange={(e) => setVetCheck(e.target.checked)} />
         <Checkbox label="Notifier automatiquement les vétérinaires validés des nouvelles demandes" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
         <Alert>{err}</Alert>
+        <div className="flex justify-end">
+          <Button type="submit" loading={busy} icon={<Save className="size-4" />}>
+            Enregistrer
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+// Compte Bakma qui reçoit les virements des acheteurs + durée de garantie avant versement au vendeur
+function PaymentForm({ initial }: { initial: Json }) {
+  const [holder, setHolder] = useState(String(initial.account_holder ?? "Bakma Store"));
+  const [bank, setBank] = useState(String(initial.bank_name ?? ""));
+  const [rib, setRib] = useState(String(initial.rib ?? ""));
+  const [days, setDays] = useState(Number(initial.hold_days ?? 8));
+  const [localErr, setLocalErr] = useState<string | null>(null);
+  const { save, busy, err } = useSaveSetting("payment");
+  return (
+    <Card className="max-w-3xl">
+      <CardHeader title="Paiement des achats" subtitle="Compte affiché aux acheteurs pour le virement, et garantie avant de payer le vendeur." icon={<Landmark />} />
+      <form
+        className="space-y-5 px-6 pb-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const digits = rib.replace(/\D/g, "");
+          if (digits.length !== 20) return setLocalErr("Le RIB doit contenir exactement 20 chiffres.");
+          setLocalErr(null);
+          save({ ...initial, account_holder: holder.trim(), bank_name: bank.trim(), rib: digits, hold_days: Math.min(60, Math.max(1, days || 8)) });
+        }}
+      >
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Titulaire du compte">
+            <Input icon={<Building2 />} value={holder} onChange={(e) => setHolder(e.target.value)} required />
+          </Field>
+          <Field label="Banque">
+            <Input icon={<Landmark />} value={bank} onChange={(e) => setBank(e.target.value)} placeholder="Ex. BIAT" />
+          </Field>
+        </div>
+        <Field label="RIB (20 chiffres)" hint={rib.replace(/\D/g, "").length === 20 ? formatRib(rib) : "Sans RIB, le bouton « Acheter » reste inactif sur le site."}>
+          <Input value={rib} onChange={(e) => setRib(e.target.value)} inputMode="numeric" className="font-mono" />
+        </Field>
+        <Field label="Garantie avant versement au vendeur (jours)" hint="Entre 1 et 60. S'applique aux nouveaux achats ; l'acheteur peut signaler un problème pendant cette période.">
+          <Input type="number" min={1} max={60} value={days} onChange={(e) => setDays(Number(e.target.value))} className="max-w-40" />
+        </Field>
+        <Alert>{localErr ?? err}</Alert>
+        <div className="flex justify-end">
+          <Button type="submit" loading={busy} icon={<Save className="size-4" />}>
+            Enregistrer
+          </Button>
+        </div>
+      </form>
+    </Card>
+  );
+}
+
+// Boutique en ligne : frais de livraison (recalculés côté serveur par place_order)
+function ShopForm({ initial }: { initial: Json }) {
+  const [fee, setFee] = useState(initial.delivery_fee != null ? String(initial.delivery_fee) : "7");
+  const [freeFrom, setFreeFrom] = useState(initial.free_delivery_from != null && Number(initial.free_delivery_from) > 0 ? String(initial.free_delivery_from) : "");
+  const [localErr, setLocalErr] = useState<string | null>(null);
+  const { save, busy, err } = useSaveSetting("shop");
+  const num = (s: string) => Number(s.trim().replace(",", "."));
+  const feeN = num(fee);
+  const freeN = freeFrom.trim() ? num(freeFrom) : null;
+  const rule =
+    !Number.isFinite(feeN) || feeN < 0
+      ? null
+      : feeN === 0
+        ? "La livraison est toujours offerte."
+        : freeN && freeN > 0
+          ? `Livraison facturée ${feeN} TND, offerte dès ${freeN} TND d'achats (hors livraison).`
+          : `Livraison facturée ${feeN} TND sur chaque commande, jamais offerte.`;
+  return (
+    <Card className="max-w-3xl">
+      <CardHeader title="Livraison de la boutique" subtitle="Appliquée aux nouvelles commandes ; le total est recalculé par le serveur." icon={<Store />} />
+      <form
+        className="space-y-5 px-6 pb-6"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!fee.trim() || !Number.isFinite(feeN) || feeN < 0) return setLocalErr("Les frais de livraison doivent être un montant positif ou nul.");
+          if (freeN != null && (!Number.isFinite(freeN) || freeN <= 0)) return setLocalErr("Le seuil de livraison offerte doit être supérieur à 0 (ou laissé vide).");
+          setLocalErr(null);
+          save({ ...initial, delivery_fee: Math.round(feeN * 100) / 100, free_delivery_from: freeN == null ? null : Math.round(freeN * 100) / 100 });
+        }}
+      >
+        <div className="grid gap-5 md:grid-cols-2">
+          <Field label="Frais de livraison (TND)" required>
+            <Input icon={<Truck />} inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} right="TND" />
+          </Field>
+          <Field label="Livraison offerte à partir de (TND)" hint="Laisser vide : jamais offerte.">
+            <Input inputMode="decimal" value={freeFrom} onChange={(e) => setFreeFrom(e.target.value)} right="TND" placeholder="Jamais" />
+          </Field>
+        </div>
+        {rule && <Alert tone="blue">{rule} Le montant est comparé au sous-total des articles.</Alert>}
+        <Alert>{localErr ?? err}</Alert>
         <div className="flex justify-end">
           <Button type="submit" loading={busy} icon={<Save className="size-4" />}>
             Enregistrer

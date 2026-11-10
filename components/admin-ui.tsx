@@ -13,6 +13,7 @@ import {
   CircleX,
   Clock,
   EllipsisVertical,
+  Info,
   RefreshCw,
   Search,
 } from "lucide-react";
@@ -23,20 +24,35 @@ import type { Animal, Category, Profile, ProfileContact, RequestStatus, RequestS
 import { AnimalThumb, Avatar, Button, Modal, Textarea, cn } from "./ui";
 
 // ------------------------------------------------------------------ Titre de page
-export function PageHeader({ title, subtitle, action, back }: { title: React.ReactNode; subtitle?: React.ReactNode; action?: React.ReactNode; back?: { href: string; label: string } }) {
+/** Début de chaque page : (retour / fil d'Ariane) → titre + description → actions à droite (une seule primaire). */
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+  back,
+  eyebrow,
+}: {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  action?: React.ReactNode;
+  back?: { href: string; label: string };
+  eyebrow?: React.ReactNode;
+}) {
   return (
     <div className="mb-6">
-      {back && (
-        <Link href={back.href} className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline">
-          <ArrowLeft className="size-4" /> {back.label}
+      {back ? (
+        <Link href={back.href} className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 transition hover:text-navy">
+          <ArrowLeft className="size-3.5" aria-hidden /> {back.label}
         </Link>
+      ) : (
+        eyebrow && <p className="mb-1 text-xs font-medium text-slate-500">{eyebrow}</p>
       )}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-extrabold tracking-tight text-navy sm:text-[32px] sm:leading-tight">{title}</h1>
-          {subtitle && <p className="mt-1 text-sm text-body sm:text-base">{subtitle}</p>}
+          <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.02em] text-navy sm:text-[26px]">{title}</h1>
+          {subtitle && <p className="mt-1 text-[13.5px] text-slate-500">{subtitle}</p>}
         </div>
-        {action && <div className="flex shrink-0 flex-wrap items-center gap-3">{action}</div>}
+        {action && <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div>}
       </div>
     </div>
   );
@@ -45,11 +61,11 @@ export function PageHeader({ title, subtitle, action, back }: { title: React.Rea
 // ------------------------------------------------------------------ Erreur avec bouton « Réessayer »
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
-      <span className="grid size-14 place-items-center rounded-full bg-red-50 text-red-500">
-        <CircleAlert className="size-7" />
+    <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+      <span className="grid size-10 place-items-center rounded-full bg-rose-50 text-rose-600" aria-hidden>
+        <CircleAlert className="size-5" />
       </span>
-      <p className="max-w-md text-sm font-medium text-navy">{message}</p>
+      <p role="alert" className="max-w-md text-sm font-medium text-navy">{message}</p>
       {onRetry && (
         <Button variant="outline" size="sm" icon={<RefreshCw className="size-4" />} onClick={onRetry}>
           Réessayer
@@ -372,8 +388,8 @@ export function ActionMenu({ items, label = "Plus d'actions", trigger }: { items
   if (!visible.length) return null;
   const itemCls = (it: MenuItem) =>
     cn(
-      "flex h-10 w-full items-center gap-2.5 rounded-lg px-3 text-left text-sm font-medium transition [&>svg]:size-4",
-      it.disabled ? "cursor-not-allowed opacity-40" : it.danger ? "text-red-600 hover:bg-red-50" : "text-navy hover:bg-primary-soft hover:text-primary",
+      "flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-left text-[13px] font-medium transition [&>svg]:size-4",
+      it.disabled ? "cursor-not-allowed opacity-40" : it.danger ? "text-rose-600 hover:bg-rose-50" : "text-slate-700 hover:bg-slate-100 hover:text-navy",
     );
 
   return (
@@ -385,12 +401,12 @@ export function ActionMenu({ items, label = "Plus d'actions", trigger }: { items
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="grid size-9 place-items-center rounded-lg text-muted transition hover:bg-page hover:text-navy"
+        className="grid size-9 place-items-center rounded-lg text-slate-500 outline-none transition hover:bg-slate-100 hover:text-navy focus-visible:ring-2 focus-visible:ring-focus/50"
       >
         {trigger ?? <EllipsisVertical className="size-5" />}
       </button>
       {open && pos && (
-        <div ref={panel} role="menu" className="fixed z-50 w-52 rounded-xl border border-line bg-white p-1.5 shadow-xl" style={{ top: pos.top, left: pos.left }}>
+        <div ref={panel} role="menu" className="bo-fade-in fixed z-50 w-52 rounded-xl border border-slate-200 bg-white p-1.5 shadow-[var(--shadow-pop)]" style={{ top: pos.top, left: pos.left }}>
           {visible.map((it) =>
             it.href && !it.disabled ? (
               it.external ? (
@@ -489,25 +505,38 @@ export function ConfirmDialog({
           <Button variant="outline" onClick={close} disabled={busy}>
             Annuler
           </Button>
-          <Button variant={variant} onClick={confirm} loading={busy}>
+          <Button variant={variant === "danger" ? "dangerSolid" : variant} onClick={confirm} loading={busy} autoFocus>
             {confirmLabel}
           </Button>
         </>
       }
     >
       <div className="space-y-4">
-        {message && <div className="text-sm text-body">{message}</div>}
+        {message && (
+          <div className="flex gap-3">
+            <span
+              className={cn(
+                "grid size-10 shrink-0 place-items-center rounded-full [&>svg]:size-5",
+                variant === "danger" ? "bg-rose-50 text-rose-600" : variant === "success" ? "bg-emerald-50 text-emerald-600" : "bg-primary-soft text-primary",
+              )}
+              aria-hidden
+            >
+              {variant === "danger" ? <CircleAlert /> : variant === "success" ? <CircleCheck /> : <Info />}
+            </span>
+            <div className="pt-1 text-sm text-slate-600">{message}</div>
+          </div>
+        )}
         {children}
         {input && (
           <label className="block space-y-1.5">
-            <span className="text-sm font-semibold text-navy">
+            <span className="block text-[12.5px] font-medium text-slate-700">
               {input.label}
-              {input.required && <span className="text-red-500"> *</span>}
+              {input.required && <span className="text-rose-500"> *</span>}
             </span>
             <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder={input.placeholder} />
           </label>
         )}
-        {err && <p className="whitespace-pre-line text-sm font-medium text-red-600">{err}</p>}
+        {err && <p role="alert" className="whitespace-pre-line text-[13px] font-medium text-rose-600">{err}</p>}
       </div>
     </Modal>
   );
@@ -517,26 +546,30 @@ export function ConfirmDialog({
 export function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[minmax(110px,40%)_1fr] gap-3 py-1.5 text-sm">
-      <dt className="text-muted">{label}</dt>
+      <dt className="text-slate-500">{label}</dt>
       <dd className="min-w-0 break-words font-medium text-navy">{children ?? "—"}</dd>
     </div>
   );
 }
 
-// ------------------------------------------------------------------ Barre de filtres réactive
+// ------------------------------------------------------------------ Barre d'outils (recherche + filtres) au-dessus d'un tableau
 export function FilterBar({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">{children}</div>;
+  return <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center">{children}</div>;
 }
 
-/** Tableau responsive avec en-tête stylé. */
+export const Toolbar = FilterBar;
+
+/** Tableau : en-tête collant 11,5 px en majuscules, cellules 13 px, lignes séparées, survol discret. */
 export function DataTable({ head, children, className }: { head: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("overflow-x-auto", className)}>
-      <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="bg-page/70 text-xs font-bold uppercase tracking-wide text-navy/80 [&_th]:px-4 [&_th]:py-3.5 [&_th]:font-bold">
+    <div className={cn("custom-scrollbar overflow-x-auto", className)}>
+      <table className="w-full min-w-[760px] text-left text-[13px]">
+        <thead className="sticky top-0 z-10 border-b border-slate-200/80 bg-slate-50/95 text-[11.5px] font-semibold uppercase tracking-[0.02em] text-slate-500 backdrop-blur [&_th]:px-4 [&_th]:py-3 [&_th]:font-semibold [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
           {head}
         </thead>
-        <tbody className="divide-y divide-line/70 [&_td]:px-4 [&_td]:py-3 [&_td]:align-middle">{children}</tbody>
+        <tbody className="divide-y divide-slate-100 text-slate-700 [&_td]:px-4 [&_td]:py-3 [&_td]:align-middle [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&>tr]:transition-colors [&>tr:hover]:bg-slate-50/80">
+          {children}
+        </tbody>
       </table>
     </div>
   );

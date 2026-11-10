@@ -2,7 +2,7 @@
 
 import { getSupabase } from "./supabase";
 
-export type PublicBucket = "animal-photos" | "avatars" | "consultation-photos";
+export type PublicBucket = "animal-photos" | "avatars" | "consultation-photos" | "shop-images";
 
 /** Upload dans <bucket>/<userId>/<sous-dossier>/<uuid>.<ext> et renvoie l'URL publique. */
 export async function uploadPublicFile(bucket: PublicBucket, userId: string, file: File, folder = ""): Promise<string> {

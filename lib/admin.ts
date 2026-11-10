@@ -33,6 +33,16 @@ export const ACTIVITY_SELECT =
 export const REPORT_SELECT =
   "*, reporter:profiles!reports_reporter_id_fkey(id,full_name,avatar_url), animal:animals!reports_animal_id_fkey(id,name,cover_url,status), reported_user:profiles!reports_reported_user_id_fkey(id,full_name,avatar_url)";
 
+export const PURCHASE_SELECT =
+  "*, animal:animals!purchases_animal_id_fkey(id,name,breed,age_value,age_unit,sex,cover_url,status,listing_type,price), " +
+  "buyer:profiles!purchases_buyer_id_fkey(*, contact:profile_contacts!profile_contacts_id_fkey(*)), " +
+  "seller:profiles!purchases_seller_id_fkey(*, contact:profile_contacts!profile_contacts_id_fkey(*))";
+
+/** Achats demandant une action de l'admin : reçu à vérifier, litige, ou garantie échue (à verser). */
+export function purchasesToHandleFilter(now = new Date()): string {
+  return `status.in.(paiement_a_verifier,litige),and(status.eq.garantie,release_at.lte."${now.toISOString()}")`;
+}
+
 export const CONVERSATION_SELECT =
   "*, animal:animals!conversations_animal_id_fkey(id,name,cover_url), a:profiles!conversations_participant_a_fkey(*), b:profiles!conversations_participant_b_fkey(*)";
 
